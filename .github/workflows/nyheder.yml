@@ -1,0 +1,37 @@
+# Henter nyheder til Makro Invest hvert kvarter og gemmer dem i nyheder.json.
+# Siden på investnyt.com læser filen herfra. Kun officielle kilder og selskabsmeddelelser (--offentlig).
+name: Nyheder
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nyheder
+  cancel-in-progress: false
+
+jobs:
+  hent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python nyheder_hent.py --offentlig --kun-ved-nyt
+      - name: Gem, hvis der er nyt
+        run: |
+          if [ -z "$(git status --porcelain nyheder.json)" ]; then echo "Intet nyt"; exit 0; fi
+          git config user.name "nyheder-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # kun den nyeste udgave gemmes, så mappen ikke vokser for hver opdatering
+          git checkout --orphan ny
+          git add -A
+          git commit -q -m "Nyheder $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f origin HEAD:main
